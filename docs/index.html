@@ -243,32 +243,9 @@
             }
         }
         
-        // Generate grid lines for retro background
+        // Generate grid lines for retro background - MODIFIED for performance
         function generateGridLines() {
-            gridLines = [];
-            const gridSize = Math.max(canvas.width, canvas.height) / 20;
-            
-            // Horizontal lines
-            for (let y = gridSize; y < canvas.height; y += gridSize) {
-                gridLines.push({
-                    x1: 0,
-                    y1: y,
-                    x2: canvas.width,
-                    y2: y,
-                    alpha: 0.1 + Math.random() * 0.15 // Increased contrast
-                });
-            }
-            
-            // Vertical lines
-            for (let x = gridSize; x < canvas.width; x += gridSize) {
-                gridLines.push({
-                    x1: x,
-                    y1: 0,
-                    x2: x,
-                    y2: canvas.height,
-                    alpha: 0.1 + Math.random() * 0.15 // Increased contrast
-                });
-            }
+            gridLines = []; // Just initialize an empty array, no grid lines will be created
         }
         
         // Generate stars for retro background
@@ -1054,24 +1031,11 @@
             return false;
         }
         
-        // Draw background with grid and stars - ENHANCED
+        // Draw background with grid and stars - MODIFIED to remove color change
         function drawBackground() {
             // Black background
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw grid lines
-            ctx.lineWidth = 1;
-            for (let i = 0; i < gridLines.length; i++) {
-                const line = gridLines[i];
-                const alpha = line.alpha * (0.4 + 0.6 * Math.sin(frameCount * 0.01)); // Enhanced pulsating effect
-                
-                ctx.beginPath();
-                ctx.moveTo(line.x1, line.y1);
-                ctx.lineTo(line.x2, line.y2);
-                ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
-                ctx.stroke();
-            }
             
             // Draw stars - ENHANCED with more animation
             for (let i = 0; i < stars.length; i++) {
@@ -1115,9 +1079,7 @@
             
             ctx.shadowBlur = 0;
             
-            // Draw a subtle indicator for gravity direction
-            ctx.fillStyle = gravityDirection > 0 ? 'rgba(255,0,255,0.05)' : 'rgba(0,255,255,0.05)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Removed color change when gravity flips
         }
         
         // Update game state
