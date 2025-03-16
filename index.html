@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Neon Gravity Flip</title>
+    <style>
+        @font-face {
+            font-family: 'RetroFont';
+            src: url('https://cdnjs.cloudflare.com/ajax/libs/press-start-2p/5.0.0/press-start-2p-latin-400.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            font-family: 'RetroFont', 'Courier New', monospace;
+            overflow: hidden;
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: 100%;
+            max-height: 800px;
+        }
+        
+        canvas {
+            background-color: #000;
+            display: block;
+            margin: 0 auto;
+            border-radius: 5px;
+            box-shadow: 0 0 20px #0ff;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        #score {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #0ff;
+            font-size: 18px;
+            font-weight: normal;
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+        }
+        
+        #high-score {
+            position: absolute;
+            top: 50px;
+            right: 20px;
+            color: #f0f;
+            font-size: 14px;
+            font-weight: normal;
+            text-shadow: 0 0 10px #f0f, 0 0 20px #f0f;
+        }
+        
+        #start-screen, #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #0ff;
+            text-align: center;
+        }
+        
+        #game-over {
+            display: none;
+        }
+        
+        button {
+            background-color: transparent;
+            border: 2px solid #0ff;
+            color: #0ff;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+            pointer-events: auto;
+            transition: all 0.3s;
+            font-family: 'RetroFont', 'Courier New', monospace;
+            text-shadow: 0 0 10px #0ff;
+            box-shadow: 0 0 10px #0ff, inset 0 0 10px #0ff;
+        }
+        
+        button:hover {
+            background-color: rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 20px #0ff, inset 0 0 20px #0ff;
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        .instructions {
+            margin: 20px;
+            max-width: 80%;
+            color: #f0f;
+            text-shadow: 0 0 10px #f0f;
+        }
+        
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff, 0 0 30px #0ff;
+            color: #0ff;
+            letter-spacing: 2px;
+        }
+        
+        @media (max-height: 600px) {
+            h1 {
+                font-size: 24px;
+                margin-bottom: 5px;
+            }
+            
+            .instructions p {
+                margin: 5px 0;
+                font-size: 12px;
+            }
+            
+            button {
+                padding: 10px 25px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="ui">
+            <div id="score">0</div>
+            <div id="high-score">HIGH: 0</div>
+            <div id="start-screen">
+                <h1>NEON GRAVITY</h1>
+                <div class="instructions">
+                    <p>TAP OR CLICK TO FLIP GRAVITY</p>
+                    <p>GUIDE THE SHIP THROUGH OBSTACLES</p>
+                </div>
+                <button id="start-button">START GAME</button>
+            </div>
+            <div id="game-over">
+                <h1>GAME OVER</h1>
+                <div id="final-score" style="font-size: 20px; margin: 10px 0 20px 0; color: #f0f; text-shadow: 0 0 10px #f0f;">SCORE: 0</div>
+                <button id="restart-button">PLAY AGAIN</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        let canvas, ctx;
+        let ship, obstacles;
+        let score, highScore = 0;
+        let gameRunning = false;
+        let gravityDirection = 1; // 1 for down, -1 for up
+        let obstacleSpeed = 3;
+        let gameInterval;
+        let frameCount = 0;
+        let particles = [];
+        let localStorageAvailable = false;
+        let gridLines = [];
+        let meteors = []; // Array for shooting stars
+        
+        // DOM elements
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('high-score');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreElement = document.getElementById('final-score');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        
+        // Check if localStorage is available
+        function checkLocalStorage() {
+            try {
+                localStorage.setItem('test', 'test');
+                localStorage.removeItem('test');
+                localStorageAvailable = true;
+                return true;
+            } catch (e) {
+                localStorageAvailable = false;
+                console.warn('localStorage not available');
+                return false;
+            }
+        }
+        
+        // Save high score to localStorage
+        function saveHighScore(score) {
+            if (localStorageAvailable) {
+                try {
+                    localStorage.setItem('neonGravityHighScore', score.toString());
+                } catch (e) {
+                    console.warn('Could not save high score');
+                }
+            }
+        }
+        
+        // Load high score from localStorage
+        function loadHighScore() {
+            if (localStorageAvailable) {
+                try {
+                    const savedScore = localStorage.getItem('neonGravityHighScore');
+                    if (savedScore !== null) {
+                        highScore = parseInt(savedScore, 10);
+                        highScoreElement.textContent = `HIGH: ${highScore}`;
+                    }
+                } catch (e) {
+                    console.warn('Could not load high score');
+                }
+            }
+        }
+        
+        // Generate grid lines for retro background
+        function generateGridLines() {
+            gridLines = [];
+            const gridSize = Math.max(canvas.width, canvas.height) / 20;
+            
+            // Horizontal lines
+            for (let y = gridSize; y < canvas.height; y += gridSize) {
+                gridLines.push({
+                    x1: 0,
+                    y1: y,
+                    x2: canvas.width,
+                    y2: y,
+                    alpha: 0.1 + Math.random() * 0.15 // Increased contrast
+                });
+            }
+            
+            // Vertical lines
+            for (let x = gridSize; x < canvas.width; x += gridSize) {
+                gridLines.push({
+                    x1: x,
+                    y1: 0,
+                    x2: x,
+                    y2: canvas.height,
+                    alpha: 0.1 + Math.random() * 0.15 // Increased contrast
+                });
+            }
+        }
+        
+        // Generate stars for retro background
+        function generateStars() {
+            stars = [];
+            // Increased number of stars for more vibrancy
+            const starCount = Math.floor(canvas.width * canvas.height / 5000);
+            
+            for (let i = 0; i < starCount; i++) {
+                const size = Math.random() * 4 + 1; // Larger stars
+                const shape = Math.floor(Math.random() * 3); // 0: circle, 1: square, 2: cross
+                
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: size,
+                    shape: shape,
+                    color: getRandomNeonColor(),
+                    alpha: 0.4 + Math.random() * 0.8, // Brighter stars
+                    pulse: Math.random() * 0.03 + 0.01, // Faster pulse
+                    twinkle: Math.random() * 0.1 + 0.05, // Twinkle effect speed
+                    twinklePhase: Math.random() * Math.PI * 2, // Random starting phase
+                    wobble: Math.random() * 0.5, // Small wobble effect
+                    wobbleSpeed: Math.random() * 0.05 + 0.01
+                });
+            }
+        }
+        
+        // Create shooting stars (meteors)
+        function createMeteor() {
+            // Randomize direction and speed
+            const angle = Math.random() * Math.PI / 4 + Math.PI / 8; // Angle between π/8 and 3π/8
+            const speed = 5 + Math.random() * 10;
+            const length = 20 + Math.random() * 50;
+            
+            meteors.push({
+                x: Math.random() * canvas.width * 1.5, // Start outside the right side
+                y: -50, // Start above the canvas
+                speedX: -Math.cos(angle) * speed,
+                speedY: Math.sin(angle) * speed,
+                length: length,
+                width: 2 + Math.random() * 2,
+                color: getRandomNeonColor(),
+                alpha: 0.7 + Math.random() * 0.3,
+                tailParticles: []
+            });
+        }
+        
+        // Update and draw meteors
+        function updateMeteors() {
+            for (let i = meteors.length - 1; i >= 0; i--) {
+                const meteor = meteors[i];
+                
+                // Update position
+                meteor.x += meteor.speedX;
+                meteor.y += meteor.speedY;
+                
+                // Create tail particles
+                if (Math.random() > 0.2) {
+                    meteor.tailParticles.push({
+                        x: meteor.x,
+                        y: meteor.y,
+                        size: 1 + Math.random() * 2,
+                        alpha: 0.6 + Math.random() * 0.4,
+                        life: 20 + Math.random() * 30
+                    });
+                }
+                
+                // Update tail particles
+                for (let j = meteor.tailParticles.length - 1; j >= 0; j--) {
+                    meteor.tailParticles[j].alpha *= 0.95;
+                    meteor.tailParticles[j].size *= 0.97;
+                    meteor.tailParticles[j].life--;
+                    
+                    if (meteor.tailParticles[j].life <= 0) {
+                        meteor.tailParticles.splice(j, 1);
+                    }
+                }
+                
+                // Remove meteors that are off-screen
+                if (meteor.x < -100 || meteor.y > canvas.height + 100) {
+                    meteors.splice(i, 1);
+                }
+            }
+            
+            // Randomly create new meteors
+            if (Math.random() > 0.993) { // Adjusted probability for occasional meteors
+                createMeteor();
+            }
+        }
+        
+        function drawMeteors() {
+            for (let i = 0; i < meteors.length; i++) {
+                const meteor = meteors[i];
+                
+                // Draw tail particles
+                for (let j = 0; j < meteor.tailParticles.length; j++) {
+                    const p = meteor.tailParticles[j];
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `${meteor.color}${Math.floor(p.alpha * 255).toString(16).padStart(2, '0')}`;
+                    ctx.shadowColor = meteor.color;
+                    ctx.shadowBlur = 5;
+                    ctx.fill();
+                }
+                
+                // Draw meteor head
+                ctx.beginPath();
+                ctx.moveTo(meteor.x, meteor.y);
+                // Calculate end point based on angle
+                const endX = meteor.x + (-meteor.speedX * (meteor.length / meteor.speedY));
+                const endY = meteor.y - meteor.length;
+                
+                ctx.lineTo(endX, endY);
+                ctx.lineWidth = meteor.width;
+                ctx.strokeStyle = `${meteor.color}${Math.floor(meteor.alpha * 255).toString(16).padStart(2, '0')}`;
+                ctx.shadowColor = meteor.color;
+                ctx.shadowBlur = 10;
+                ctx.stroke();
+                
+                // Draw bright head
+                ctx.beginPath();
+                ctx.arc(meteor.x, meteor.y, meteor.width * 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff';
+                ctx.shadowColor = meteor.color;
+                ctx.shadowBlur = 15;
+                ctx.fill();
+            }
+            
+            ctx.shadowBlur = 0;
+        }
+        
+        // Get random neon color
+        function getRandomNeonColor() {
+            const neonColors = ['#0ff', '#f0f', '#0f0', '#ff0', '#f00', '#08f', '#f08'];
+            return neonColors[Math.floor(Math.random() * neonColors.length)];
+        }
+        
+        // Initialize the game
+        function init() {
+            // Check localStorage availability
+            checkLocalStorage();
+            
+            // Load high score if available
+            loadHighScore();
+            
+            canvas = document.getElementById('game-canvas');
+            ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Prevent scrolling on touch devices
+            document.addEventListener('touchmove', function(e) {
+                if (e.target === canvas) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            // Add event listeners
+            canvas.addEventListener('click', handleClick);
+            window.addEventListener('keydown', function(e) {
+                if (e.code === 'Space') handleClick();
+            });
+            startButton.addEventListener('click', startGame);
+            restartButton.addEventListener('click', startGame);
+            
+            // Touch support for mobile
+            canvas.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                handleClick();
+            }, { passive: false });
+            
+            // Generate background elements
+            generateGridLines();
+            generateStars();
+            
+            // Game objects
+            resetGame();
+            
+            // Initial render
+            render();
+        }
+        
+        // Resize the canvas to fit the screen
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            // Make the canvas fill the container while maintaining aspect ratio
+            canvas.width = containerWidth;
+            canvas.height = containerHeight;
+            
+            // Regenerate background elements
+            generateGridLines();
+            generateStars();
+            
+            if (gameRunning) {
+                // Adjust game objects when resizing during gameplay
+                ship.size = Math.min(canvas.width, canvas.height) * 0.03;
+            }
+        }
+        
+        // Reset game state
+        function resetGame() {
+            score = 0;
+            scoreElement.textContent = '0';
+            highScoreElement.textContent = `HIGH: ${highScore}`;
+            gravityDirection = 1;
+            obstacleSpeed = 2; // Initial speed
+            frameCount = 0;
+            particles = [];
+            meteors = []; // Reset meteors
+            
+            // Create spaceship in the middle of the screen - MEDIUM SIZE
+            const shipSize = Math.min(canvas.width, canvas.height) * 0.0425; // Medium size between 0.03 and 0.055
+            ship = {
+                x: canvas.width / 4,
+                y: canvas.height / 2,
+                size: shipSize,
+                vy: 0,
+                gravity: 0.25,
+                bounce: -0.5,
+                thrustParticleTimer: 0,
+                update: function() {
+                    // Apply gravity
+                    this.vy += this.gravity * gravityDirection;
+                    this.y += this.vy;
+                    
+                    // Bounce off the edges
+                    if (this.y > canvas.height - this.size) {
+                        this.y = canvas.height - this.size;
+                        this.vy *= this.bounce;
+                        createExplosionParticles(this.x, canvas.height - this.size, 5);
+                    } else if (this.y < this.size) {
+                        this.y = this.size;
+                        this.vy *= this.bounce;
+                        createExplosionParticles(this.x, this.size, 5);
+                    }
+                    
+                    // Create thrust particles
+                    this.thrustParticleTimer++;
+                    if (this.thrustParticleTimer >= 2) {
+                        this.thrustParticleTimer = 0;
+                        createThrustParticles(
+                            this.x, 
+                            this.y,
+                            gravityDirection
+                        );
+                    }
+                },
+                draw: function() {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    
+                    // Set up strong neon glow effect
+                    ctx.shadowColor = '#0af';
+                    ctx.shadowBlur = 20;
+                    
+                    // Fighter jet style spaceship based on reference image
+                    
+                    // Main fuselage - central body
+                    ctx.beginPath();
+                    ctx.moveTo(this.size * 1.5, 0); // Sharp nose
+                    ctx.lineTo(this.size * 0.8, -this.size * 0.3); // Top front edge
+                    ctx.lineTo(-this.size * 0.2, -this.size * 0.3); // Top mid body
+                    ctx.lineTo(-this.size * 0.5, -this.size * 0.5); // Engine housing top
+                    ctx.lineTo(-this.size * 0.7, -this.size * 0.5); // Engine rear top
+                    ctx.lineTo(-this.size * 0.9, -this.size * 0.3); // Top thruster
+                    ctx.lineTo(-this.size * 1.0, 0); // Center thruster
+                    ctx.lineTo(-this.size * 0.9, this.size * 0.3); // Bottom thruster
+                    ctx.lineTo(-this.size * 0.7, this.size * 0.5); // Engine rear bottom
+                    ctx.lineTo(-this.size * 0.5, this.size * 0.5); // Engine housing bottom
+                    ctx.lineTo(-this.size * 0.2, this.size * 0.3); // Bottom mid body
+                    ctx.lineTo(this.size * 0.8, this.size * 0.3); // Bottom front edge
+                    ctx.closePath();
+                    
+                    // Blue-purple gradient for main body
+                    const mainGradient = ctx.createLinearGradient(-this.size, 0, this.size * 1.5, 0);
+                    mainGradient.addColorStop(0, 'rgba(80, 20, 180, 0.9)'); // Purple at rear
+                    mainGradient.addColorStop(0.3, 'rgba(30, 60, 255, 0.9)'); // Blue mid
+                    mainGradient.addColorStop(0.7, 'rgba(20, 150, 255, 0.9)'); // Light blue front
+                    mainGradient.addColorStop(1, 'rgba(150, 220, 255, 0.9)'); // Cyan tip
+                    ctx.fillStyle = mainGradient;
+                    ctx.fill();
+                    
+                    // Sharp outer edge highlight
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    
+                    // Wing structures - larger, more pronounced like in the reference image
+                    
+                    // Left wing (top when flying)
+                    ctx.beginPath();
+                    ctx.moveTo(this.size * 0.6, -this.size * 0.3); // Wing root front
+                    ctx.lineTo(this.size * 0.1, -this.size * 1.0); // Wing outer tip
+                    ctx.lineTo(-this.size * 0.4, -this.size * 0.6); // Wing rear edge
+                    ctx.lineTo(-this.size * 0.1, -this.size * 0.3); // Wing root rear
+                    ctx.closePath();
+                    
+                    // Wing gradient - blue with cyan highlights
+                    const wingGradient1 = ctx.createLinearGradient(
+                        this.size * 0.3, -this.size * 0.5,
+                        this.size * 0.1, -this.size * 1.0
+                    );
+                    wingGradient1.addColorStop(0, 'rgba(30, 100, 255, 0.8)');
+                    wingGradient1.addColorStop(0.7, 'rgba(0, 200, 255, 0.7)');
+                    wingGradient1.addColorStop(1, 'rgba(200, 255, 255, 0.9)');
+                    ctx.fillStyle = wingGradient1;
+                    ctx.shadowColor = '#0ff';
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Right wing (bottom when flying)
+                    ctx.beginPath();
+                    ctx.moveTo(this.size * 0.6, this.size * 0.3); // Wing root front
+                    ctx.lineTo(this.size * 0.1, this.size * 1.0); // Wing outer tip
+                    ctx.lineTo(-this.size * 0.4, this.size * 0.6); // Wing rear edge
+                    ctx.lineTo(-this.size * 0.1, this.size * 0.3); // Wing root rear
+                    ctx.closePath();
+                    
+                    // Wing gradient - blue with magenta highlights
+                    const wingGradient2 = ctx.createLinearGradient(
+                        this.size * 0.3, this.size * 0.5,
+                        this.size * 0.1, this.size * 1.0
+                    );
+                    wingGradient2.addColorStop(0, 'rgba(50, 80, 255, 0.8)');
+                    wingGradient2.addColorStop(0.5, 'rgba(100, 50, 255, 0.7)');
+                    wingGradient2.addColorStop(1, 'rgba(200, 100, 255, 0.9)');
+                    ctx.fillStyle = wingGradient2;
+                    ctx.shadowColor = '#f0f';
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Cockpit - sleek and futuristic
+                    ctx.beginPath();
+                    ctx.ellipse(this.size * 0.6, 0, this.size * 0.6, this.size * 0.2, 0, 0, Math.PI * 2);
+                    
+                    // Glass canopy effect
+                    const cockpitGradient = ctx.createLinearGradient(
+                        this.size * 0.3, -this.size * 0.2,
+                        this.size * 0.9, this.size * 0.2
+                    );
+                    cockpitGradient.addColorStop(0, 'rgba(150, 50, 255, 0.7)'); // Purple
+                    cockpitGradient.addColorStop(0.5, 'rgba(200, 230, 255, 0.9)'); // Bright center
+                    cockpitGradient.addColorStop(1, 'rgba(50, 150, 255, 0.7)'); // Blue
+                    
+                    ctx.fillStyle = cockpitGradient;
+                    ctx.shadowColor = '#f0f';
+                    ctx.shadowBlur = 15;
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Detailed engine/thruster system
+                    
+                    // Main thruster
+                    ctx.beginPath();
+                    ctx.arc(-this.size * 1.0, 0, this.size * 0.25, 0, Math.PI * 2);
+                    const thrusterGradient = ctx.createRadialGradient(
+                        -this.size * 1.0, 0, 0,
+                        -this.size * 1.0, 0, this.size * 0.25
+                    );
+                    thrusterGradient.addColorStop(0, '#fff'); // White hot center
+                    thrusterGradient.addColorStop(0.2, '#f0f'); // Magenta
+                    thrusterGradient.addColorStop(0.6, 'rgba(150, 0, 255, 0.7)'); // Purple
+                    thrusterGradient.addColorStop(1, 'rgba(100, 0, 200, 0)'); // Fade out
+                    ctx.fillStyle = thrusterGradient;
+                    ctx.shadowColor = '#f0f';
+                    ctx.shadowBlur = 30; // Extra glow
+                    ctx.fill();
+                    
+                    // Secondary thrusters
+                    ctx.beginPath();
+                    ctx.arc(-this.size * 0.9, -this.size * 0.4, this.size * 0.15, 0, Math.PI * 2);
+                    const thruster2Gradient = ctx.createRadialGradient(
+                        -this.size * 0.9, -this.size * 0.4, 0,
+                        -this.size * 0.9, -this.size * 0.4, this.size * 0.15
+                    );
+                    thruster2Gradient.addColorStop(0, '#fff');
+                    thruster2Gradient.addColorStop(0.3, '#0ff');
+                    thruster2Gradient.addColorStop(0.7, 'rgba(0, 150, 255, 0.6)');
+                    thruster2Gradient.addColorStop(1, 'rgba(0, 100, 200, 0)');
+                    ctx.fillStyle = thruster2Gradient;
+                    ctx.shadowColor = '#0ff';
+                    ctx.shadowBlur = 20;
+                    ctx.fill();
+                    
+                    ctx.beginPath();
+                    ctx.arc(-this.size * 0.9, this.size * 0.4, this.size * 0.15, 0, Math.PI * 2);
+                    ctx.fillStyle = thruster2Gradient;
+                    ctx.fill();
+                    
+                    // Detail lines - tech patterns across the ship
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = 'rgba(150, 220, 255, 0.8)';
+                    ctx.shadowColor = '#0ff';
+                    ctx.shadowBlur = 10;
+                    
+                    // Center line
+                    ctx.beginPath();
+                    ctx.moveTo(this.size * 1.5, 0);
+                    ctx.lineTo(-this.size * 0.7, 0);
+                    ctx.stroke();
+                    
+                    // Wing detail lines - top
+                    ctx.beginPath();
+                    ctx.moveTo(this.size * 0.4, -this.size * 0.3);
+                    ctx.lineTo(this.size * 0.1, -this.size * 0.7);
+                    ctx.moveTo(this.size * 0.2, -this.size * 0.3);
+                    ctx.lineTo(0, -this.size * 0.6);
+                    ctx.stroke();
+                    
+                    // Wing detail lines - bottom
+                    ctx.beginPath();
+                    ctx.moveTo(this.size * 0.4, this.size * 0.3);
+                    ctx.lineTo(this.size * 0.1, this.size * 0.7);
+                    ctx.moveTo(this.size * 0.2, this.size * 0.3);
+                    ctx.lineTo(0, this.size * 0.6);
+                    ctx.stroke();
+                    
+                    // Front nose section highlight
+                    ctx.beginPath();
+                    ctx.moveTo(this.size * 1.5, 0);
+                    ctx.lineTo(this.size * 1.0, -this.size * 0.1);
+                    ctx.lineTo(this.size * 1.0, this.size * 0.1);
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.shadowColor = '#fff';
+                    ctx.shadowBlur = 15;
+                    ctx.fill();
+                    
+                    ctx.restore();
+                }
+            };
+            
+            // Initialize obstacles array
+            obstacles = [];
+        }
+        
+        // Create thrust particles
+        function createThrustParticles(x, y, direction) {
+            // Calculate thrust positions based on the ship's position
+            // but without changing direction when gravity flips
+            const offset = ship.size * 0.7;
+            
+            // Create particles at both thrusters
+            for (let i = 0; i < 2; i++) {
+                // Top thruster
+                particles.push({
+                    x: x - offset,
+                    y: y - ship.size * 0.5,
+                    size: Math.random() * 2 + 1,
+                    speedX: (Math.random() - 0.5) * 2 - 3,
+                    speedY: (Math.random() - 0.5) - (direction < 0 ? -2 : 2),
+                    color: `hsl(${Math.random() * 60 + 280}, 100%, 60%)`,
+                    life: Math.random() * 10 + 10,
+                    type: 'thrust'
+                });
+                
+                // Bottom thruster
+                particles.push({
+                    x: x - offset,
+                    y: y + ship.size * 0.5,
+                    size: Math.random() * 2 + 1,
+                    speedX: (Math.random() - 0.5) * 2 - 3,
+                    speedY: (Math.random() - 0.5) - (direction < 0 ? -2 : 2),
+                    color: `hsl(${Math.random() * 60 + 280}, 100%, 60%)`,
+                    life: Math.random() * 10 + 10,
+                    type: 'thrust'
+                });
+            }
+        }
+        
+        // Create explosion particles
+        function createExplosionParticles(x, y, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    size: Math.random() * 3 + 2,
+                    speedX: (Math.random() - 0.5) * 5,
+                    speedY: (Math.random() - 0.5) * 5,
+                    color: getRandomNeonColor(),
+                    life: 30,
+                    type: 'explosion'
+                });
+            }
+        }
+        
+        // Update and draw particles
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].x += particles[i].speedX;
+                particles[i].y += particles[i].speedY;
+                particles[i].life--;
+                
+                if (particles[i].type === 'thrust') {
+                    particles[i].size *= 0.95;
+                }
+                
+                if (particles[i].life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+        
+        function drawParticles() {
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                
+                if (p.type === 'thrust') {
+                    // Enhanced thrust particles with glow
+                    const alpha = p.alpha !== undefined ? p.alpha : 1;
+                    const lifeRatio = p.life / (p.thrusterType === 'main' ? 20 : 15);
+                    const adjustedAlpha = alpha * lifeRatio; // Fade based on life
+                    
+                    if (p.thrusterType === 'main') {
+                        // Main engine trail - more streaky, elongated
+                        const trailLength = p.size * 3; // Longer trail
+                        
+                        // Create stretched trail effect
+                        ctx.beginPath();
+                        ctx.moveTo(p.x + p.size/2, p.y); // Front of trail
+                        ctx.lineTo(p.x - trailLength, p.y - p.size/2); // Back top
+                        ctx.lineTo(p.x - trailLength * 1.2, p.y); // Back tip
+                        ctx.lineTo(p.x - trailLength, p.y + p.size/2); // Back bottom
+                        ctx.closePath();
+                        
+                        // Strong pinkish-purple glow for main thruster
+                        ctx.shadowColor = '#f0f';
+                        ctx.shadowBlur = 25 * adjustedAlpha;
+                        
+                        // Use RGBA for fade effect
+                        const rgbMatch = p.color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+                        if (rgbMatch) {
+                            const h = parseInt(rgbMatch[1], 10);
+                            const s = parseInt(rgbMatch[2], 10);
+                            const l = parseInt(rgbMatch[3], 10);
+                            ctx.fillStyle = `hsla(${h}, ${s}%, ${l}%, ${adjustedAlpha})`;
+                        } else {
+                            ctx.fillStyle = p.color;
+                        }
+                        
+                        ctx.fill();
+                        
+                        // Bright inner core
+                        ctx.beginPath();
+                        ctx.ellipse(p.x - p.size, p.y, p.size, p.size/2, 0, 0, Math.PI * 2);
+                        ctx.fillStyle = '#fff';
+                        ctx.fill();
+                        
+                    } else { // Secondary thrusters
+                        // Smaller, more circular bluish trails
+                        const shapeType = (i % 2); // Two shapes for variety
+                        
+                        ctx.beginPath();
+                        if (shapeType === 0) {
+                            // Teardrop shape
+                            ctx.ellipse(p.x - p.size/2, p.y, p.size * 1.5, p.size/1.2, 0, 0, Math.PI * 2);
+                        } else {
+                            // Small trail
+                            ctx.moveTo(p.x, p.y - p.size/3);
+                            ctx.lineTo(p.x - p.size * 2, p.y);
+                            ctx.lineTo(p.x, p.y + p.size/3);
+                            ctx.closePath();
+                        }
+                        
+                        // Cyan/blue glow for secondary thrusters
+                        ctx.shadowColor = '#0ff';
+                        ctx.shadowBlur = 15 * adjustedAlpha;
+                        
+                        // Use RGBA for fade effect
+                        const rgbMatch = p.color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+                        if (rgbMatch) {
+                            const h = parseInt(rgbMatch[1], 10);
+                            const s = parseInt(rgbMatch[2], 10);
+                            const l = parseInt(rgbMatch[3], 10);
+                            ctx.fillStyle = `hsla(${h}, ${s}%, ${l}%, ${adjustedAlpha})`;
+                        } else {
+                            ctx.fillStyle = p.color;
+                        }
+                        
+                        ctx.fill();
+                        
+                        // Small bright center
+                        ctx.beginPath();
+                        ctx.arc(p.x - p.size/2, p.y, p.size/3, 0, Math.PI * 2);
+                        ctx.fillStyle = '#fff';
+                        ctx.fill();
+                    }
+                } else {
+                    // Draw explosion particles as circles with enhanced glow
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 20;
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                    
+                    // Add bright core to explosion particles
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size/2, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff';
+                    ctx.fill();
+                }
+                
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        // Start the game
+        function startGame() {
+            resetGame();
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            gameRunning = true;
+            
+            // Start game loop
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(update, 1000 / 60); // 60 FPS
+        }
+        
+        // End the game
+        function endGame() {
+            gameRunning = false;
+            clearInterval(gameInterval);
+            
+            // Create explosion effect
+            createExplosionParticles(ship.x, ship.y, 50);
+            
+            // Add glitch effect
+            const glitchColors = ['#0ff', '#f0f', '#ff0'];
+            
+            let explosionInterval = setInterval(() => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawBackground();
+                
+                // Glitch effect
+                if (particles.length > 30 && Math.random() > 0.7) {
+                    const glitchColor = glitchColors[Math.floor(Math.random() * glitchColors.length)];
+                    ctx.fillStyle = glitchColor;
+                    ctx.globalAlpha = 0.1;
+                    ctx.fillRect(
+                        Math.random() * canvas.width, 
+                        Math.random() * canvas.height,
+                        Math.random() * 100 + 50,
+                        Math.random() * 10 + 2
+                    );
+                    ctx.globalAlpha = 1;
+                }
+                
+                updateParticles();
+                drawParticles();
+                updateMeteors(); // Keep meteors during game over
+                drawMeteors();
+                
+                if (particles.length === 0) {
+                    clearInterval(explosionInterval);
+                    showGameOver();
+                }
+            }, 1000/60);
+        }
+        
+        function showGameOver() {
+            // Update high score
+            if (score > highScore) {
+                highScore = score;
+                highScoreElement.textContent = `HIGH: ${highScore}`;
+                saveHighScore(highScore);
+            }
+            
+            // Show game over screen
+            finalScoreElement.textContent = `SCORE: ${score} | HIGH: ${highScore}`;
+            gameOverScreen.style.display = 'flex';
+        }
+        
+        // Handle click/tap events
+        function handleClick() {
+            if (gameRunning) {
+                // Flip gravity
+                gravityDirection *= -1;
+                
+                // Add a boost in the new direction
+                ship.vy = 4 * gravityDirection; 
+                
+                // Create particles for visual feedback
+                createExplosionParticles(ship.x, ship.y, 15);
+            }
+        }
+        
+        // Create a new obstacle
+        function createObstacle() {
+            // Medium adjustment for ship size
+            const gapHeight = canvas.height * (0.525 - Math.min(0.2, score/225)); // Medium gap size
+            const gapPosition = Math.random() * (canvas.height - gapHeight);
+            const neonColor = getRandomNeonColor();
+            
+            obstacles.push({
+                x: canvas.width,
+                gapStart: gapPosition,
+                gapHeight: gapHeight,
+                width: canvas.width * 0.06,
+                counted: false,
+                color: neonColor,
+                glowIntensity: 10,
+                glowDirection: 1,
+                update: function() {
+                    this.x -= obstacleSpeed;
+                    
+                    // Animate glow effect
+                    this.glowIntensity += 0.2 * this.glowDirection;
+                    if (this.glowIntensity > 15 || this.glowIntensity < 5) {
+                        this.glowDirection *= -1;
+                    }
+                },
+                draw: function() {
+                    // Set shadow for glow effect
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = this.glowIntensity;
+                    
+                    // Top part of the obstacle
+                    drawNeonRect(this.x, 0, this.width, this.gapStart, this.color);
+                    
+                    // Bottom part of the obstacle
+                    drawNeonRect(
+                        this.x, 
+                        this.gapStart + this.gapHeight, 
+                        this.width, 
+                        canvas.height - (this.gapStart + this.gapHeight),
+                        this.color
+                    );
+                    
+                    // Reset shadow
+                    ctx.shadowBlur = 0;
+                }
+            });
+        }
+        
+        // Draw a neon rectangle - MODIFIED to remove white lines
+        function drawNeonRect(x, y, width, height, color) {
+            // Draw the outer glow
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, width, height);
+            
+            // Draw the inner rectangle
+            ctx.fillStyle = color;
+            ctx.fillRect(x + 3, y + 3, width - 6, height - 6);
+            
+            // The white detail lines have been removed as requested
+        }
+        
+        // Check for collisions
+        function checkCollision(obstacle) {
+            // Adjusted hitbox for the medium-sized ship with better collision detection
+            // Use different hitbox sizes for height and width to better match the ship design
+            const hitboxWidthFront = ship.size * 0.9;  // Account for the pointed nose
+            const hitboxWidthRear = ship.size * 0.6;   // Account for the engine section
+            const hitboxHeight = ship.size * 0.8;      // Account for the wings, but slightly forgiving
+            
+            // Create the ship's hitbox as a rectangle with rounded edges
+            // Check if any part of the ship is within the obstacle
+            
+            // Check horizontal collision - front part of ship
+            const frontCollision = (ship.x + hitboxWidthFront > obstacle.x && 
+                                   ship.x < obstacle.x + obstacle.width);
+            
+            // Check horizontal collision - rear part of ship
+            const rearCollision = (ship.x > obstacle.x && 
+                                  ship.x - hitboxWidthRear < obstacle.x + obstacle.width);
+            
+            // If any part of the ship is horizontally aligned with the obstacle
+            if (frontCollision || rearCollision) {
+                // Check if the ship is inside the gap
+                if (ship.y - hitboxHeight < obstacle.gapStart || 
+                    ship.y + hitboxHeight > obstacle.gapStart + obstacle.gapHeight) {
+                    return true; // Collision detected
+                }
+            }
+            return false;
+        }
+        
+        // Draw background with grid and stars - ENHANCED
+        function drawBackground() {
+            // Black background
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid lines
+            ctx.lineWidth = 1;
+            for (let i = 0; i < gridLines.length; i++) {
+                const line = gridLines[i];
+                const alpha = line.alpha * (0.4 + 0.6 * Math.sin(frameCount * 0.01)); // Enhanced pulsating effect
+                
+                ctx.beginPath();
+                ctx.moveTo(line.x1, line.y1);
+                ctx.lineTo(line.x2, line.y2);
+                ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
+                ctx.stroke();
+            }
+            
+            // Draw stars - ENHANCED with more animation
+            for (let i = 0; i < stars.length; i++) {
+                const star = stars[i];
+                
+                // More dynamic twinkling and pulsing
+                const basePulse = 0.5 + 0.5 * Math.sin(frameCount * star.pulse);
+                const twinkle = 0.7 + 0.3 * Math.sin(frameCount * star.twinkle + star.twinklePhase);
+                const alpha = star.alpha * basePulse * twinkle;
+                
+                // Small position wobble for more lively stars
+                const wobbleX = star.x + Math.sin(frameCount * star.wobbleSpeed) * star.wobble;
+                const wobbleY = star.y + Math.cos(frameCount * star.wobbleSpeed) * star.wobble;
+                
+                ctx.shadowColor = star.color;
+                ctx.shadowBlur = 8 * twinkle; // Dynamic glow
+                ctx.fillStyle = `${star.color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
+                
+                if (star.shape === 0) { // Circle
+                    ctx.beginPath();
+                    ctx.arc(wobbleX, wobbleY, star.size * twinkle, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (star.shape === 1) { // Square
+                    const adjustedSize = star.size * twinkle;
+                    ctx.fillRect(wobbleX - adjustedSize/2, wobbleY - adjustedSize/2, adjustedSize, adjustedSize);
+                } else { // Cross
+                    ctx.beginPath();
+                    ctx.moveTo(wobbleX - star.size * twinkle, wobbleY);
+                    ctx.lineTo(wobbleX + star.size * twinkle, wobbleY);
+                    ctx.moveTo(wobbleX, wobbleY - star.size * twinkle);
+                    ctx.lineTo(wobbleX, wobbleY + star.size * twinkle);
+                    ctx.strokeStyle = `${star.color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw meteors (shooting stars)
+            updateMeteors();
+            drawMeteors();
+            
+            ctx.shadowBlur = 0;
+            
+            // Draw a subtle indicator for gravity direction
+            ctx.fillStyle = gravityDirection > 0 ? 'rgba(255,0,255,0.05)' : 'rgba(0,255,255,0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // Update game state
+        function update() {
+            if (!gameRunning) return;
+            
+            // Increment frame counter
+            frameCount++;
+            
+            // Add delay before first obstacle
+            if ((frameCount > 60) && (frameCount % 120 === 0)) { // Longer gaps between obstacles
+                createObstacle();
+                
+                // Increase speed slightly for difficulty progression
+                if (frameCount % 600 === 0 && score > 3) { // More gradual speed increase
+                    obstacleSpeed += 0.1;
+                }
+            }
+            
+            // Update particles
+            updateParticles();
+            
+            // Update ship
+            ship.update();
+            
+            // Update obstacles and check for collisions
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].update();
+                
+                // Score when passing an obstacle
+                if (!obstacles[i].counted && obstacles[i].x + obstacles[i].width < ship.x) {
+                    score++;
+                    scoreElement.textContent = score;
+                    obstacles[i].counted = true;
+                }
+                
+                // Check for collisions
+                if (checkCollision(obstacles[i])) {
+                    endGame();
+                    return;
+                }
+                
+                // Remove obstacles that are off-screen
+                if (obstacles[i].x + obstacles[i].width < 0) {
+                    obstacles.splice(i, 1);
+                }
+            }
+            
+            // Game over if ship goes off-screen (shouldn't happen with the bouncing, but just in case)
+            if (ship.y < 0 || ship.y > canvas.height) {
+                endGame();
+                return;
+            }
+            
+            render();
+        }
+        
+        // Render the game
+        function render() {
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background
+            drawBackground();
+            
+            // Draw obstacles
+            for (let i = 0; i < obstacles.length; i++) {
+                obstacles[i].draw();
+            }
+            
+            // Draw particles
+            drawParticles();
+            
+            // Draw ship
+            ship.draw();
+        }
+        
+        // Handle visibility change (pause game when tab is inactive)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && gameRunning) {
+                clearInterval(gameInterval);
+            } else if (!document.hidden && gameRunning) {
+                gameInterval = setInterval(update, 1000 / 60);
+            }
+        });
+        
+        // Initialize the game when the page loads
+        window.onload = init;
+        
+        // Variables to store stars
+        let stars = [];
+    </script>
+</body>
+</html>
