@@ -186,7 +186,7 @@
         let score, highScore = 0;
         let gameRunning = false;
         let gravityDirection = 1; // 1 for down, -1 for up
-        let obstacleSpeed = 3;
+        let obstacleSpeed = 3.5; // CHANGED: Initial speed increased from 3 to 3.5
         let gameInterval;
         let frameCount = 0;
         let particles = [];
@@ -480,7 +480,7 @@
             scoreElement.textContent = '0';
             highScoreElement.textContent = `HIGH: ${highScore}`;
             gravityDirection = 1;
-            obstacleSpeed = 2; // Initial speed
+            obstacleSpeed = 3.5; // CHANGED: Initial speed increased from 2 to 3.5
             frameCount = 0;
             particles = [];
             meteors = []; // Reset meteors
@@ -1133,7 +1133,7 @@
                 
                 // Increase speed slightly for difficulty progression
                 if (frameCount % 600 === 0 && score > 3) { // More gradual speed increase
-                    obstacleSpeed += 0.1;
+                    obstacleSpeed += 0.25; // CHANGED: Increased from 0.1 to 0.25 for faster progression
                 }
             }
             
